@@ -1,0 +1,349 @@
+#!/usr/bin/perl -w
+
+#
+#    Copyright (C) 2008-2016  Stamatis X. Mavrogeorgis
+#
+#    Author's Email: stamatis@zirconix.net
+#    Author's Website: http://www.istos.xyz
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# version 1.0.1 - Fixed encoding problems
+# version 1.0.0 - Added Commit Changes button
+# version 0.9.9_alpha - Renamed Program to 'talkArm'
+
+use POSIX qw/strftime/;
+use strict; use warnings;
+use Tk;
+use Tk::PNG;
+use Tk::TFrame;
+use Tk::Font;
+use Time::Local;
+use utf8;
+use open q/:encoding(UTF-8)/;
+use File::Copy;
+use File::Basename;
+use Proc::ProcessTable;
+use FindBin;
+#use lib "$FindBin::Bin/../.perlSXM";
+use lib "$ENV{HOME}/.local/share/perl";
+use SXM;
+
+# $sxmtoolkitDir and $backupDir have been declared within perlSXM.pm
+# The rest of the variables are declared and initialized here
+
+my $argComp = shift;
+
+my $programName = 'talkArm';
+my $appDescription = 'Talking Alarm';
+
+my $appConfigDir="$sxmtoolkitDir/$programName";
+my $dotTalkArmAlerts="$appConfigDir/.talkArmAlerts";
+my $SPEECHCOMMAND="";
+
+do { $SPEECHCOMMAND=qx(which spd-say); chomp $SPEECHCOMMAND; } unless ($SPEECHCOMMAND ne "");
+do { $SPEECHCOMMAND=qx(which espeak); chomp $SPEECHCOMMAND; } unless ($SPEECHCOMMAND ne "");
+
+chomp $SPEECHCOMMAND;
+
+my $dotTMPRCFile="$appConfigDir/.tmpRCFile";
+my $dotTMPRedoFile="$appConfigDir/.tmpRedoFile";
+my $spVolume=300;
+my $aTime=undef;
+
+system("[ -d $sxmtoolkitDir ] || mkdir $sxmtoolkitDir");
+system("[ -d $appConfigDir ] || mkdir $appConfigDir");
+system("[ -d $backupDir ] || mkdir $backupDir");
+system("[ -f $dotTalkArmAlerts ] || touch $dotTalkArmAlerts");
+
+do {
+  print "Usage: ", $programName, " <[-m|--min|-b|--backup|-V|--Version|-h|--help]>\n";
+  exit 0;
+} unless (not defined $argComp) or (($argComp ne "-h") and ($argComp ne "--help"));
+
+do {
+  print $appDescription, "\n", $programName, " v.", $version, "\n", $copyLeft, "\n";
+  exit 0;
+} unless (not defined $argComp) or (($argComp ne "-V") and ($argComp ne "--Version"));
+
+do {
+  my $dateTimeStamp=qx(date "+%Y%m%d%H%M%S");
+  chomp($dateTimeStamp);
+  my ( $volume, $directories, $filename ) = File::Spec->splitpath($0);
+  my $srcFile=$0;
+  my $dstFile="$backupDir" . "/" . "$filename" . "." . "$dateTimeStamp";
+  copy($srcFile, $dstFile);
+  exit 0;
+} unless (not defined $argComp) or (($argComp ne "-b") and ($argComp ne "--backup"));
+
+my $procTable = new Proc::ProcessTable;
+
+my $matchCount=0;
+my $p;
+foreach $p(@{$procTable->table}) {
+  if ($p->cmndline =~ "/usr/bin/perl.*$0") { $matchCount++; }
+}
+exit unless ($matchCount == 1);
+
+################# P R O G R A M #################
+my ($aDesc, $tmpReadString, $currentDTStamp, $aVolume)=("");
+
+my $top = MainWindow->new(-title => "$programName v$version");
+my $icon = $top->Photo(-file => "$ENV{HOME}/.local/share/icons/talkArm.png");
+my $font = $top->Font(-family=>'DejaVuSans', -size=>8, -weight=>'bold');
+$top->protocol('WM_DELETE_WINDOW' => \&quitTalkArm);
+$top->optionAdd('*font', 'DejaVuSans 8');
+$top->geometry("416x432");
+$top->minsize(352,336);
+$top->gridColumnconfigure(0, -weight=>0);
+$top->gridColumnconfigure(1, -weight=>1);
+$top->gridColumnconfigure(2, -weight=>0);
+$top->gridColumnconfigure(3, -weight=>1);
+$top->gridColumnconfigure(4, -weight=>0);
+$top->gridColumnconfigure(5, -weight=>0);
+$top->gridRowconfigure(0, -weight=>0);
+$top->gridRowconfigure(1, -weight=>0);
+$top->gridRowconfigure(2, -weight=>0);
+$top->gridRowconfigure(3, -weight=>0);
+$top->gridRowconfigure(4, -weight=>0);
+$top->gridRowconfigure(5, -weight=>0);
+$top->gridRowconfigure(6, -weight=>1);
+$top->gridRowconfigure(7, -weight=>0);
+$top->gridRowconfigure(8, -weight=>0);
+$top->gridRowconfigure(9, -weight=>0);
+
+my $sATLabel = $top->Label(-text=>'Alarm Time');
+my $sAlarmTime = $top->Entry(-font=>$font, -fg=>'#0000FF', -width => 16, -textvariable=>\$aTime);
+$sAlarmTime->bind('<ButtonPress-1>' => sub{$aTime=strftime('%Y%m%d%H%M%S',localtime)});
+
+my $sAVLabel = $top->Label(-text=>'Volume', -anchor=>'e');
+my $sAlarmVolume = $top->Spinbox(-from=>0, -to=>1000, -increment=>10, -state=>'readonly',
+                                    -font=>$font, -fg=>'#0000FF', -width => 4, -textvariable=>\$spVolume);
+my $sADLabel = $top->Label(-text=>'Description');
+my $sAlarmDesc = $top->Entry(-font=>$font, -fg=>'#0000FF', -width => 40, -textvariable=>\$aDesc);
+my $sASLabel = $top->Label(-text=>'Status');
+my $sAlarmStatus = $top->Label(-foreground=>'#00FF00', -background=>'#000000', -height=>1, -justify=>'left', -font=>$font,
+                            -width => 40);
+
+my $alarmLB=$top->Scrolled("Listbox", -scrollbars=>'se', -selectbackground=>'#C0C0C0',
+                            -exportselection=>0, -activestyle=>'dotbox', -selectmode=>'single');
+
+my $bAddAlarm = $top->Button(-font=>$font, -text => 'ADD/ENABLE ALARM', -width => 20, -command => sub{addAlarm()});
+my $bTermAlarm = $top->Button(-font=>$font, -text => 'STOP/DISABLE ALARM', -width => 20,
+                                 -command => sub{unless (!$alarmLB->curselection) {termAlarm($alarmLB->curselection)}});
+my $bEditAlarm = $top->Button(-font=>$font, -text => 'EDIT ALARM', -width => 20,
+                                 -command => sub{ unless (!$alarmLB->curselection) {editAlarm($alarmLB->curselection)}});
+my $bSaveAlarm = $top->Button(-font=>$font, -text => 'SAVE ALARM', -width => 20, -state=>'disabled',
+                                 -command => sub{ unless (!$alarmLB->curselection) {saveAlarm($alarmLB->curselection)}});
+my $bTestAlarm = $top->Button(-font=>$font, -text => 'TEST ALARM', -width => 20,
+                                 -command => sub{ unless (!$alarmLB->curselection) {soundAlarm($alarmLB->curselection);
+                                                                        $alarmLB->configure(-selectbackground=>'#C0C0C0')}});
+my $bDelAlarm = $top->Button(-font=>$font, -text => 'DELETE ALARM', -width => 20,
+                                -command => sub{ unless (!$alarmLB->curselection) { $alarmLB->delete('active')}});
+
+my ($bUndoAll, $bCommit, $bRedoAll);
+
+$bUndoAll = $top->Button(-font=>$font, -text => 'UNDO ALL CHANGES', -width => 16, -state=>'normal',
+                               -command => sub{checkAlarm();
+                                               system("cp $dotTMPRCFile $dotTMPRedoFile");
+                                               $alarmLB->delete(0, 'end');
+                                               readConfFile($dotTalkArmAlerts);
+                                               $bRedoAll->configure(-state=>'normal');
+                                               $bUndoAll->configure(-state=>'disabled')});
+
+$bCommit = $top->Button(-font=>$font, -text => 'COMMIT CHANGES', -width => 16, -state=>'normal',
+                               -fg => '#007F00', -activeforeground => '#00AF00',
+                               -command => sub{(-e $dotTMPRCFile) and system("cp $dotTMPRCFile $dotTalkArmAlerts");});
+
+
+$bRedoAll = $top->Button(-font=>$font, -text => 'REDO ALL CHANGES', -width => 16, -state=>'disabled',
+                               -command => sub{$alarmLB->delete(0, 'end');
+                                               readConfFile($dotTMPRedoFile);
+                                               system("rm $dotTMPRedoFile");
+                                               $bUndoAll->configure(-state=>'normal');
+                                               $bRedoAll->configure(-state=>'disabled')});
+my $bMinimize = $top->Button(-font=>$font, -text => 'ICONIFY', -width => 48, -command => sub{$top->iconify});
+my $bQuit = $top->Button(-font=>$font, -text => 'QUIT', -width => 48, -command => sub{quitTalkArm()});
+
+#$sATLabel->grid(-row=>0, -column=>0, -sticky=>'nswe');
+#$sAlarmTime->grid(-row=>0, -column=>1, -sticky=>'nswe');
+#$sAVLabel->grid(-row=>0, -column=>2, -sticky=>'nswe');
+#$sAlarmVolume->grid(-row=>0, -column=>3, -sticky=>'nswe');
+#$sADLabel->grid($sAlarmDesc, '-','-', -sticky=>'nswe');
+#$sASLabel->grid($sAlarmStatus, '-', '-', -sticky=>'nswe');
+#$bAddAlarm->grid('-', $bEditAlarm, '-', -sticky=>'nswe');
+#$bTermAlarm->grid('-', $bSaveAlarm, '-', -sticky=>'nswe');
+#$bDelAlarm->grid('-', $bTestAlarm, '-', -sticky=>'nswe');
+#$alarmLB->grid(-sticky=>'nswe', -columnspan=>4);
+#$bUndoAll->grid('-', $bRedoAll, '-', -sticky=>'nswe');
+#$bCommit->grid('-','-','-', -sticky=>'nswe');
+#$bQuit->grid('-','-','-', -sticky=>'nswe');
+
+$sATLabel->grid($sAlarmTime, $sAVLabel, $sAlarmVolume, -sticky=>'nswe');
+$sADLabel->grid($sAlarmDesc, '-','-', -sticky=>'nswe');
+$sASLabel->grid($sAlarmStatus, '-', '-', -sticky=>'nswe');
+$bAddAlarm->grid('-', $bEditAlarm, '-', -sticky=>'nswe');
+$bTermAlarm->grid('-', $bSaveAlarm, '-', -sticky=>'nswe');
+$bDelAlarm->grid('-', $bTestAlarm, '-', -sticky=>'nswe');
+$alarmLB->grid(-sticky=>'nswe', -columnspan=>4);
+$bUndoAll->grid('-', $bRedoAll, '-', -sticky=>'nswe');
+$bCommit->grid('-','-','-', -sticky=>'nswe');
+$bMinimize->grid('-',$bQuit,'-', -sticky=>'nswe');
+
+readConfFile($dotTalkArmAlerts);
+
+$top->repeat(7777, sub{checkAlarm()});
+
+$SIG{TERM} = \&quitTalkArm;
+
+$top->Icon(-image => $icon);
+$top->iconify unless (not defined $argComp) or (($argComp ne "-m") and ($argComp ne "--min"));
+
+MainLoop();
+
+sub readConfFile {
+  my ($confFile)=@_;
+  open RCFILE, '<', "$confFile" or die $!;
+  my @tmpArray;
+  while (<RCFILE>) {
+    $tmpReadString=$_;
+    chomp($tmpReadString);
+    push (@tmpArray, $tmpReadString);
+  }
+  close RCFILE;
+  $alarmLB->insert('end', sort @tmpArray);
+}
+
+sub addAlarm {
+  unless (!$aTime or !$aDesc)  {
+    my $tmpAlarmString=($sAlarmTime->get() . " S ". $sAlarmDesc->get());
+    $alarmLB->insert('end', $tmpAlarmString);
+    $aTime=undef;
+    $aDesc=undef;
+  }
+  elsif ($alarmLB->curselection) {
+    my ($listCounter)=$alarmLB->curselection;
+    my ($alarmTime, $alarmStatus, $alarmDesc) = (substr($alarmLB->get($listCounter),0,14), 
+                                                 substr($alarmLB->get($listCounter),15,1),
+                                                 substr($alarmLB->get($listCounter),17,1024));
+  $alarmLB->delete($listCounter);
+  $alarmLB->insert($listCounter, $alarmTime . " S " . $alarmDesc);
+  }
+}
+
+sub checkAlarm {
+  my ($listCounter)=0;
+  open (TMPRCFILE, '>', $dotTMPRCFile);
+  while ($listCounter < $alarmLB->size) {
+    $currentDTStamp=time();
+    my ($alarmTime, $alarmStatus, $alarmDesc) = (substr($alarmLB->get($listCounter),0,14), 
+                                                 substr($alarmLB->get($listCounter),15,1),
+                                                 substr($alarmLB->get($listCounter),17,1024));
+    if ($currentDTStamp >= SXM::formatLTS2UTS($alarmTime) and $currentDTStamp - SXM::formatLTS2UTS($alarmTime) <= 901) {
+      if ($alarmStatus eq 'S') {
+        activateAlarm($listCounter);
+        soundAlarm($listCounter);
+      }
+      elsif ($alarmStatus eq 'A') {
+        soundAlarm($listCounter);
+      }
+    }
+    print TMPRCFILE $alarmTime . " " . $alarmStatus . " " . $alarmDesc . "\n";
+    $listCounter++;
+  }
+  close (TMPRCFILE);
+  sort $alarmLB;
+}
+
+sub activateAlarm {
+  my ($listCounter)=@_;
+  my ($alarmTime, $alarmStatus, $alarmDesc) = (substr($alarmLB->get($listCounter),0,14), 
+                                                 substr($alarmLB->get($listCounter),15,1),
+                                                 substr($alarmLB->get($listCounter),17,1024));
+  $alarmLB->delete($listCounter);
+  $alarmLB->insert($listCounter, $alarmTime . " A " . $alarmDesc);
+  $alarmLB->configure(-selectbackground=>'#C0C0C0'); 
+}
+
+sub editAlarm {
+  my ($listCounter)=@_;
+  ($aTime, $aDesc) = (substr($alarmLB->get($listCounter),0,14), substr($alarmLB->get($listCounter),17,1024));
+  $alarmLB->configure(-selectbackground=>'#C0C0C0'); 
+  $bAddAlarm->configure(-state=>'disabled');
+  $bTermAlarm->configure(-state=>'disabled');
+  $bEditAlarm->configure(-state=>'disabled');
+  $bSaveAlarm->configure(-state=>'normal');
+  $bTestAlarm->configure(-state=>'disabled');
+  $bDelAlarm->configure(-state=>'disabled');
+}
+
+sub saveAlarm {
+  my ($listCounter)=@_;
+  $alarmLB->delete($listCounter);
+  $alarmLB->insert($listCounter, $aTime . " S " . $aDesc);
+  $aTime=undef;
+  $aDesc=undef;
+  $alarmLB->configure(-selectbackground=>'#C0C0C0'); 
+  $bAddAlarm->configure(-state=>'normal');
+  $bTermAlarm->configure(-state=>'normal');
+  $bEditAlarm->configure(-state=>'normal');
+  $bSaveAlarm->configure(-state=>'disabled');
+  $bTestAlarm->configure(-state=>'normal');
+  $bDelAlarm->configure(-state=>'normal');
+}
+
+sub termAlarm {
+  my ($listCounter)=@_;
+  my ($alarmTime, $alarmStatus, $alarmDesc) = (substr($alarmLB->get($listCounter),0,14), 
+                                                 substr($alarmLB->get($listCounter),15,1),
+                                                 substr($alarmLB->get($listCounter),17,1024));
+  $alarmLB->delete($listCounter);
+  $alarmLB->insert($listCounter, $alarmTime . " X " . $alarmDesc);
+  $alarmLB->configure(-selectbackground=>'#C0C0C0'); 
+}
+
+sub deleteAlarm {
+  my ($listCounter)=@_;
+  $alarmLB->delete($listCounter);
+  $alarmLB->configure(-selectbackground=>'#C0C0C0'); 
+  $alarmLB->selectionClear(0,'end'); 
+}
+
+sub soundAlarm {
+  my ($listCounter)=@_;
+  my ($alarmTime, $alarmStatus, $alarmDesc) = (substr($alarmLB->get($listCounter),0,14), 
+                                                 substr($alarmLB->get($listCounter),15,1),
+                                                 substr($alarmLB->get($listCounter),17,1024));
+  $alarmLB->activate($listCounter);
+  $alarmLB->selectionClear(0,'end');
+  $alarmLB->configure(-selectbackground=>'#FF0000'); 
+  $alarmLB->selectionSet($listCounter);
+
+  if ($SPEECHCOMMAND =~ /spd-say/) {
+    $aVolume = eval($spVolume / 5 - 100);
+    system("$SPEECHCOMMAND -r -16 -i$aVolume -tfemale2 -lel \"$alarmDesc\" &");
+  }
+  else {
+    system("$SPEECHCOMMAND -s 96 -v greek -a$spVolume \"$alarmDesc\" &");
+  }
+}
+
+sub quitTalkArm {
+  checkAlarm();
+  (-e $dotTMPRCFile) and system("cp $dotTMPRCFile $dotTalkArmAlerts");
+  (-e $dotTMPRCFile) and system("rm $dotTMPRCFile");
+  (-e $dotTMPRedoFile) and system("rm $dotTMPRedoFile");
+  exit 0;
+}

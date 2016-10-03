@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=talkArm
+Name[el]=talkArm
+GenericName=talkArm
+GenericName[el]=talkArm
+Comment=Talking Scheduler / Alarm
+Comment[el]=Ομιλών Ειδοποιητής
+Type=Application
+TryExec=talkArm
+Exec=talkArm
+Icon=talkArm
+Categories=Utility;
