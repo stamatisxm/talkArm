@@ -10,4 +10,4 @@ Type=Application
 TryExec=talkArm
 Exec=talkArm
 Icon=talkArm
-Categories=Utility;
+Categories=AudioVideo;Utility;
