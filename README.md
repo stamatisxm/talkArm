@@ -29,10 +29,10 @@ To run this program, you need to have the following packages installed in your s
 - _**speech-dispatcher**_
 
 #### Once the above packages are installed
-- Download the current version of **_talkArm__vX.Y.Z.tar_**
+- Download the current version of _**talkArm_vX.Y.Z.tar**_
 - Move the downloaded tarball into your **$HOME**, as all extracted files and directories will be relative to your **$HOME**
 - Expand the tar file in a terminal by issuing:  
-<code>**tar xf talkArm__vX.Y.Z.tar.tar**</code>
+<code>**tar xf talkArm_vX.Y.Z.tar.tar**</code>
 - Invoke the program from the terminal, running:  
 <code>**talkArm &**</code>  
 to ensure that it loads properly and no error messages are shown.
