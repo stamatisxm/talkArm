@@ -43,9 +43,6 @@ If everything has gone ok, you should be able to find the program in the _**Acce
 The tarball contains these files (relative to the user's $HOME):
 <pre>
 bin/talkArm
-.icons/talkArm-mask.xbm
 .icons/talkArm.png
-.icons/talkArm.xbm
-.icons/talkArm.xpm
 .local/share/applications/talkArm.desktop
 </pre>
