@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-#    Copyright (C) 2008-2016  Stamatis X. Mavrogeorgis
+#    Copyright (C) 2008-2017  Stamatis X. Mavrogeorgis
 #
 #    Author's Email: stamatis@zirconix.net
 #    Author's Website: http://www.istos.xyz
@@ -333,10 +333,12 @@ sub soundAlarm {
 
   if ($SPEECHCOMMAND =~ /spd-say/) {
     $aVolume = eval($spVolume / 5 - 100);
-    system("$SPEECHCOMMAND -r -16 -i$aVolume -tfemale2 -lel \"$alarmDesc\" &");
+    #system("$SPEECHCOMMAND -r -16 -i$aVolume -tfemale2 -lel \"$alarmDesc\" &");
+    system("$SPEECHCOMMAND -r -16 -i$aVolume -tfemale2 -len \"$alarmDesc\" &");
   }
   else {
-    system("$SPEECHCOMMAND -s 96 -v greek -a$spVolume \"$alarmDesc\" &");
+    #system("$SPEECHCOMMAND -s 96 -v greek -a$spVolume \"$alarmDesc\" &");
+    system("$SPEECHCOMMAND -s 96 -v english -a$spVolume \"$alarmDesc\" &");
   }
 }
 
